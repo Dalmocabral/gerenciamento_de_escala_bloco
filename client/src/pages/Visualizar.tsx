@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 import { ArrowLeft, Calendar, Download, AlertCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
@@ -26,6 +27,7 @@ export default function Visualizar() {
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dragEnabled, setDragEnabled] = useState(false);
   const [dragInfo, setDragInfo] = useState<{diaIndex: number, posIndex: number} | null>(null);
 
   useEffect(() => {
@@ -229,10 +231,10 @@ export default function Visualizar() {
         {/* Filtros */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Filtros</CardTitle>
+            <CardTitle>Filtros e Opções</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="periodo">Período</Label>
                 <Select value={periodo} onValueChange={(value) => setPeriodo(value as Periodo)}>
@@ -263,6 +265,22 @@ export default function Visualizar() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2 flex flex-col justify-center border-border md:border-l md:pl-4">
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    id="drag-mode" 
+                    checked={dragEnabled}
+                    onCheckedChange={setDragEnabled}
+                  />
+                  <Label htmlFor="drag-mode" className="text-sm font-medium cursor-pointer">
+                    Modo Reorganizar
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground leading-tight">
+                  Ative para arrastar posições e soltar.
+                </p>
               </div>
 
               <div className="space-y-2 flex items-end">
@@ -337,7 +355,7 @@ export default function Visualizar() {
                             <td 
                               key={escala.id} 
                               className={`px-4 py-3 text-sm border-r border-border transition-colors ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
-                              draggable={!!posicao && !isUpdating}
+                              draggable={!!posicao && !isUpdating && dragEnabled}
                               onDragStart={(e) => {
                                 if (!posicao) return;
                                 setDragInfo({ diaIndex: escalaIndex, posIndex: i });
@@ -361,7 +379,7 @@ export default function Visualizar() {
                               }}
                             >
                               {posicao ? (
-                                <div className={`flex flex-col p-1 -m-1 rounded cursor-grab active:cursor-grabbing hover:bg-muted/50 ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
+                                <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
                                   <span className="font-medium text-foreground pointer-events-none">
                                     {posicao.usuarioNome}
                                   </span>
