@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLocation } from "wouter";
 import { ArrowLeft, Calendar, Plus, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
@@ -24,6 +25,7 @@ export default function Gerar() {
   const [, navigate] = useLocation();
   const [periodo, setPeriodo] = useState<Periodo>('janeiro');
   const [ano, setAno] = useState(new Date().getFullYear());
+  const [tipoGeracao, setTipoGeracao] = useState<'continuar' | 'novo'>('continuar');
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(false);
@@ -150,11 +152,58 @@ export default function Gerar() {
     try {
       setLoading(true);
 
+      let ordemAnterior: User[] | undefined = undefined;
+
+      if (tipoGeracao === 'continuar') {
+        const indexAtual = PERIODOS.indexOf(periodo);
+        
+        let periodoAnterior: Periodo;
+        let anoAnterior: number;
+
+        if (indexAtual === 0) {
+          periodoAnterior = 'dezembro';
+          anoAnterior = ano - 1;
+        } else {
+          periodoAnterior = PERIODOS[indexAtual - 1];
+          anoAnterior = ano;
+        }
+
+        const qAnt = query(
+          collection(db, 'escalas'),
+          where('periodo', '==', periodoAnterior),
+          where('ano', '==', anoAnterior)
+        );
+        const prevSnapshot = await getDocs(qAnt);
+        
+        if (!prevSnapshot.empty) {
+          const escalasAnt: Escala[] = [];
+          prevSnapshot.forEach(doc => escalasAnt.push(doc.data() as Escala));
+          
+          escalasAnt.sort((a, b) => {
+            const diaA = parseInt(a.data.split('/')[0]);
+            const diaB = parseInt(b.data.split('/')[0]);
+            return diaB - diaA; // sort desc
+          });
+
+          const ultimoDia = escalasAnt[0];
+          
+          if (ultimoDia && ultimoDia.posicoes) {
+            ordemAnterior = ultimoDia.posicoes.map(p => {
+               return usuarios.find(usr => usr.id === p.usuarioId);
+            }).filter(Boolean) as User[];
+            
+            toast.success(`Continuando esquema do dia ${ultimoDia.data}...`);
+          }
+        } else {
+          toast.warning(`Escala de ${periodoAnterior}/${anoAnterior} não encontrada. Gerando do zero.`);
+        }
+      }
+
       // Filtrar férias do período selecionado
       const feriasDoPeríodo = ferias.filter(f => f.periodo === periodo && f.ano === ano);
 
       // Gerar escala
-      const escalas = gerarEscala(usuarios, periodo, ano, feriasDoPeríodo);
+      const escalas = gerarEscala(usuarios, periodo, ano, feriasDoPeríodo, ordemAnterior);
 
       // Deletar escalas antigas do mesmo período
       const q = query(
@@ -252,6 +301,20 @@ export default function Gerar() {
                   min={2020}
                   max={2100}
                 />
+              </div>
+
+              <div className="space-y-3 pt-2 pb-1 border-t border-border mt-2">
+                <Label>Método de Geração</Label>
+                <RadioGroup value={tipoGeracao} onValueChange={(v) => setTipoGeracao(v as 'continuar' | 'novo')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="continuar" id="r1" />
+                    <Label htmlFor="r1" className="font-normal cursor-pointer text-sm">Continuar escala do mês anterior</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="novo" id="r2" />
+                    <Label htmlFor="r2" className="font-normal cursor-pointer text-sm">Nova escala (Gerar do zero)</Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               <Button

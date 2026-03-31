@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLocation } from "wouter";
 import { ArrowLeft, Calendar, Download, AlertCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { Escala, PERIODOS, Periodo } from '@/lib/types';
+import { collection, getDocs, query, where, writeBatch, doc } from 'firebase/firestore';
+import { Escala, PERIODOS, Periodo, User, Ferias } from '@/lib/types';
+import { recalcularEscalas } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
 
 /**
@@ -21,7 +22,11 @@ export default function Visualizar() {
   const [periodo, setPeriodo] = useState<Periodo>('janeiro');
   const [ano, setAno] = useState(new Date().getFullYear());
   const [escalas, setEscalas] = useState<Escala[]>([]);
+  const [usuarios, setUsuarios] = useState<User[]>([]);
+  const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [dragInfo, setDragInfo] = useState<{diaIndex: number, posIndex: number} | null>(null);
 
   useEffect(() => {
     carregarEscalas();
@@ -31,6 +36,36 @@ export default function Visualizar() {
     try {
       setLoading(true);
       
+      // Carregar usuários para o recálculo
+      const usuariosSnapshot = await getDocs(collection(db, 'usuarios'));
+      const usuariosData: User[] = [];
+      usuariosSnapshot.forEach((d) => {
+        usuariosData.push({
+          id: d.id,
+          name: d.data().name,
+          matricula: d.data().matricula,
+          createdAt: d.data().createdAt?.toDate() || new Date()
+        });
+      });
+      setUsuarios(usuariosData);
+
+      // Carregar férias para o recálculo (apenas do período, ou todas)
+      const feriasSnapshot = await getDocs(collection(db, 'ferias'));
+      const feriasData: Ferias[] = [];
+      feriasSnapshot.forEach((d) => {
+        feriasData.push({
+          id: d.id,
+          usuarioId: d.data().usuarioId,
+          usuarioNome: d.data().usuarioNome,
+          dataInicio: d.data().dataInicio,
+          dataFim: d.data().dataFim,
+          periodo: d.data().periodo,
+          ano: d.data().ano,
+          createdAt: d.data().createdAt?.toDate() || new Date()
+        });
+      });
+      setFerias(feriasData);
+
       const q = query(
         collection(db, 'escalas'),
         where('periodo', '==', periodo),
@@ -110,6 +145,62 @@ export default function Visualizar() {
     document.body.removeChild(element);
 
     toast.success('Escala exportada em CSV!');
+  };
+
+  const handleSwap = async (diaIndex: number, sourcePosIndex: number, targetPosIndex: number) => {
+    try {
+      if (sourcePosIndex === targetPosIndex) return;
+      setIsUpdating(true);
+
+      const novasPosicoes = [...escalas[diaIndex].posicoes];
+      const source = novasPosicoes[sourcePosIndex];
+      const target = novasPosicoes[targetPosIndex];
+
+      // Troca os usuários, mantendo o "posicao" numérico intacto
+      novasPosicoes[sourcePosIndex] = { 
+        ...novasPosicoes[sourcePosIndex], 
+        usuarioId: target.usuarioId, 
+        usuarioNome: target.usuarioNome, 
+        usuarioMatricula: target.usuarioMatricula 
+      };
+      
+      novasPosicoes[targetPosIndex] = { 
+        ...novasPosicoes[targetPosIndex], 
+        usuarioId: source.usuarioId, 
+        usuarioNome: source.usuarioNome, 
+        usuarioMatricula: source.usuarioMatricula 
+      };
+
+      const feriasDoPeríodo = ferias.filter(f => f.periodo === periodo && f.ano === ano);
+      
+      const novasEscalas = recalcularEscalas(
+        escalas,
+        diaIndex,
+        novasPosicoes,
+        usuarios,
+        feriasDoPeríodo
+      );
+
+      setEscalas(novasEscalas);
+
+      // Salvar em lote
+      const batch = writeBatch(db);
+      for (let i = diaIndex; i < novasEscalas.length; i++) {
+        const esc = novasEscalas[i];
+        const docRef = doc(db, 'escalas', esc.id);
+        batch.update(docRef, { posicoes: esc.posicoes, updatedAt: new Date() });
+      }
+
+      await batch.commit();
+      toast.success('Escala atualizada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao recalcular:', error);
+      toast.error('Erro ao salvar nova organização');
+      carregarEscalas(); // Reverte p/ db state se falhar
+    } finally {
+      setIsUpdating(false);
+      setDragInfo(null);
+    }
   };
 
   return (
@@ -238,16 +329,43 @@ export default function Visualizar() {
                         <td className="px-4 py-3 font-medium text-foreground border-r border-border sticky left-0 bg-inherit shadow-sm">
                           {i + 1}
                         </td>
-                        {escalas.map(escala => {
+                        {escalas.map((escala, escalaIndex) => {
                           const posicao = escala.posicoes[i];
+                          const isDraggingOver = dragInfo && dragInfo.diaIndex === escalaIndex && dragInfo.posIndex !== i;
+                          
                           return (
-                            <td key={escala.id} className="px-4 py-3 text-sm border-r border-border">
+                            <td 
+                              key={escala.id} 
+                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
+                              draggable={!!posicao && !isUpdating}
+                              onDragStart={(e) => {
+                                if (!posicao) return;
+                                setDragInfo({ diaIndex: escalaIndex, posIndex: i });
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                if (dragInfo && dragInfo.diaIndex === escalaIndex && dragInfo.posIndex !== i && posicao) {
+                                  e.dataTransfer.dropEffect = 'move';
+                                } else {
+                                  e.dataTransfer.dropEffect = 'none';
+                                }
+                              }}
+                              onDragLeave={() => {
+                                // optional stylistic cleanup handled by state
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (!dragInfo || dragInfo.diaIndex !== escalaIndex || !posicao) return;
+                                handleSwap(dragInfo.diaIndex, dragInfo.posIndex, i);
+                              }}
+                            >
                               {posicao ? (
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-foreground">
+                                <div className={`flex flex-col p-1 -m-1 rounded cursor-grab active:cursor-grabbing hover:bg-muted/50 ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
+                                  <span className="font-medium text-foreground pointer-events-none">
                                     {posicao.usuarioNome}
                                   </span>
-                                  <span className="text-xs text-muted-foreground mt-1">
+                                  <span className="text-xs text-muted-foreground mt-1 pointer-events-none">
                                     {posicao.usuarioMatricula}
                                   </span>
                                 </div>
