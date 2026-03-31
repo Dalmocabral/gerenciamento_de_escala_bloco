@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
-import { ArrowLeft, Calendar, Download, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Download, AlertCircle, Camera } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, writeBatch, doc } from 'firebase/firestore';
 import { Escala, PERIODOS, Periodo, User, Ferias } from '@/lib/types';
 import { recalcularEscalas } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
+import * as htmlToImage from 'html-to-image';
 
 /**
  * Página de Visualização de Escala
@@ -29,6 +30,7 @@ export default function Visualizar() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [dragEnabled, setDragEnabled] = useState(false);
   const [dragInfo, setDragInfo] = useState<{diaIndex: number, posIndex: number} | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     carregarEscalas();
@@ -147,6 +149,28 @@ export default function Visualizar() {
     document.body.removeChild(element);
 
     toast.success('Escala exportada em CSV!');
+  };
+
+  const handleExportarImagem = async () => {
+    if (!tableRef.current) return;
+    try {
+      const toastId = toast.loading('Processando layout da imagem...');
+      const dataUrl = await htmlToImage.toPng(tableRef.current, {
+        pixelRatio: 2, 
+        backgroundColor: document.documentElement.classList.contains('dark') ? '#09090b' : '#ffffff',
+      });
+      const element = document.createElement('a');
+      element.setAttribute('href', dataUrl);
+      element.setAttribute('download', `escala-${periodo}-${ano}.png`);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      toast.success('Escala exportada como imagem pronta para enviar!', { id: toastId });
+    } catch (error) {
+      console.error('Erro ao gerar imagem:', error);
+      toast.error('Erro ao converter escala em imagem');
+    }
   };
 
   const handleSwap = async (diaIndex: number, sourcePosIndex: number, targetPosIndex: number) => {
@@ -284,15 +308,26 @@ export default function Visualizar() {
               </div>
 
               <div className="space-y-2 flex items-end">
-                <Button
-                  onClick={handleExportarCSV}
-                  variant="outline"
-                  className="w-full"
-                  disabled={escalas.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Exportar CSV
-                </Button>
+                <div className="flex gap-2 w-full">
+                  <Button
+                    onClick={handleExportarImagem}
+                    variant="outline"
+                    className="flex-1 p-2"
+                    title="Baixar como Imagem"
+                    disabled={escalas.length === 0}
+                  >
+                    <Camera className="w-4 h-4 mx-auto" />
+                  </Button>
+                  <Button
+                    onClick={handleExportarCSV}
+                    variant="outline"
+                    className="flex-1 p-2 bg-primary/5 hover:bg-primary/10"
+                    title="Baixar Tabela (CSV)"
+                    disabled={escalas.length === 0}
+                  >
+                    <Download className="w-4 h-4 mx-auto" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -326,8 +361,9 @@ export default function Visualizar() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full table-striped">
+              <div className="overflow-x-auto pb-4">
+                <div ref={tableRef} className="bg-card w-full min-w-max">
+                  <table className="w-full table-striped">
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
                       <th className="px-4 py-3 text-left font-semibold text-foreground border-r border-border">Posição</th>
@@ -355,28 +391,28 @@ export default function Visualizar() {
                             <td 
                               key={escala.id} 
                               className={`px-4 py-3 text-sm border-r border-border transition-colors ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
-                              draggable={!!posicao && !isUpdating && dragEnabled}
-                              onDragStart={(e) => {
+                              draggable={dragEnabled && !!posicao && !isUpdating ? true : undefined}
+                              onDragStart={dragEnabled ? (e) => {
                                 if (!posicao) return;
                                 setDragInfo({ diaIndex: escalaIndex, posIndex: i });
                                 e.dataTransfer.effectAllowed = 'move';
-                              }}
-                              onDragOver={(e) => {
+                              } : undefined}
+                              onDragOver={dragEnabled ? (e) => {
                                 e.preventDefault();
                                 if (dragInfo && dragInfo.diaIndex === escalaIndex && dragInfo.posIndex !== i && posicao) {
                                   e.dataTransfer.dropEffect = 'move';
                                 } else {
                                   e.dataTransfer.dropEffect = 'none';
                                 }
-                              }}
-                              onDragLeave={() => {
-                                // optional stylistic cleanup handled by state
-                              }}
-                              onDrop={(e) => {
+                              } : undefined}
+                              onDragLeave={dragEnabled ? () => {
+                                // opcional
+                              } : undefined}
+                              onDrop={dragEnabled ? (e) => {
                                 e.preventDefault();
                                 if (!dragInfo || dragInfo.diaIndex !== escalaIndex || !posicao) return;
                                 handleSwap(dragInfo.diaIndex, dragInfo.posIndex, i);
-                              }}
+                              } : undefined}
                             >
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
@@ -398,6 +434,7 @@ export default function Visualizar() {
                   </tbody>
                 </table>
               </div>
+            </div>
 
               {/* Resumo */}
               <div className="mt-6 p-4 bg-accent/5 border border-accent/20 rounded-lg">

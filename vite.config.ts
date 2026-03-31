@@ -152,7 +152,8 @@ function vitePluginManusDebugCollector(): Plugin {
 
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? "/gerenciamento_de_escala_bloco/" : "/",
   plugins,
   resolve: {
     alias: {
@@ -185,4 +186,4 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
-});
+}));
