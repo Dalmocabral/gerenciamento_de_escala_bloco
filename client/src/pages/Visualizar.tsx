@@ -12,6 +12,7 @@ import { Escala, PERIODOS, Periodo, User, Ferias } from '@/lib/types';
 import { recalcularEscalas } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
 import * as htmlToImage from 'html-to-image';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /**
  * Página de Visualização de Escala
@@ -30,6 +31,7 @@ export default function Visualizar() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [dragEnabled, setDragEnabled] = useState(false);
   const [dragInfo, setDragInfo] = useState<{diaIndex: number, posIndex: number} | null>(null);
+  const [vistaExportacao, setVistaExportacao] = useState<'completo'|'quinzena1'|'quinzena2'>('completo');
   const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -151,25 +153,45 @@ export default function Visualizar() {
     toast.success('Escala exportada em CSV!');
   };
 
-  const handleExportarImagem = async () => {
+  const handleExportarImagem = async (modo: 'completo' | 'quinzena1' | 'quinzena2' = 'completo') => {
     if (!tableRef.current) return;
     try {
-      const toastId = toast.loading('Processando layout da imagem...');
-      const dataUrl = await htmlToImage.toPng(tableRef.current, {
-        pixelRatio: 2, 
-        backgroundColor: document.documentElement.classList.contains('dark') ? '#09090b' : '#ffffff',
-      });
-      const element = document.createElement('a');
-      element.setAttribute('href', dataUrl);
-      element.setAttribute('download', `escala-${periodo}-${ano}.png`);
-      element.style.display = 'none';
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-      toast.success('Escala exportada como imagem pronta para enviar!', { id: toastId });
+      const nomeModo = modo === 'completo' ? 'Mês inteiro' : modo === 'quinzena1' ? '1ª Quinzena' : '2ª Quinzena';
+      const toastId = toast.loading(`Processando imagem (${nomeModo})...`);
+      
+      setVistaExportacao(modo);
+
+      // Timeout para permitir que o React processe a ocultação das colunas
+      setTimeout(async () => {
+        try {
+          const dataUrl = await htmlToImage.toPng(tableRef.current!, {
+            pixelRatio: 2, 
+            backgroundColor: document.documentElement.classList.contains('dark') ? '#09090b' : '#ffffff',
+          });
+          
+          let nomeArquivo = `escala-${periodo}-${ano}`;
+          if (modo === 'quinzena1') nomeArquivo += '-1a-quinzena';
+          if (modo === 'quinzena2') nomeArquivo += '-2a-quinzena';
+
+          const element = document.createElement('a');
+          element.setAttribute('href', dataUrl);
+          element.setAttribute('download', `${nomeArquivo}.png`);
+          element.style.display = 'none';
+          document.body.appendChild(element);
+          element.click();
+          document.body.removeChild(element);
+
+          toast.success(`Escala exportada! (${nomeModo})`, { id: toastId });
+        } catch (error) {
+          console.error('Erro ao gerar imagem:', error);
+          toast.error('Erro ao converter escala em imagem', { id: toastId });
+        } finally {
+          setVistaExportacao('completo');
+        }
+      }, 300);
     } catch (error) {
-      console.error('Erro ao gerar imagem:', error);
-      toast.error('Erro ao converter escala em imagem');
+      console.error('Erro geral na imagem:', error);
+      toast.error('Erro ao preparar exportação');
     }
   };
 
@@ -309,15 +331,31 @@ export default function Visualizar() {
 
               <div className="space-y-2 flex items-end">
                 <div className="flex gap-2 w-full">
-                  <Button
-                    onClick={handleExportarImagem}
-                    variant="outline"
-                    className="flex-1 p-2"
-                    title="Baixar como Imagem"
-                    disabled={escalas.length === 0}
-                  >
-                    <Camera className="w-4 h-4 mx-auto" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex-1 p-2"
+                        title="Baixar como Imagem"
+                        disabled={escalas.length === 0}
+                      >
+                        <Camera className="w-4 h-4 mx-auto" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleExportarImagem('completo')} className="cursor-pointer">
+                        Mês Completo (Integral)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportarImagem('quinzena1')} className="cursor-pointer">
+                        1ª Quinzena (Dia 01 a 15)
+                      </DropdownMenuItem>
+                      {escalas.length > 15 && (
+                        <DropdownMenuItem onClick={() => handleExportarImagem('quinzena2')} className="cursor-pointer">
+                          2ª Quinzena (Dia 16 em diante)
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     onClick={handleExportarCSV}
                     variant="outline"
@@ -367,11 +405,15 @@ export default function Visualizar() {
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
                       <th className="px-4 py-3 text-left font-semibold text-foreground border-r border-border">Posição</th>
-                      {escalas.map(escala => (
-                        <th key={escala.id} className="px-4 py-3 text-left font-semibold text-foreground border-r border-border min-w-[120px]">
-                          {escala.data}
-                        </th>
-                      ))}
+                      {escalas.map((escala, escalaIndex) => {
+                        if (vistaExportacao === 'quinzena1' && escalaIndex >= 15) return null;
+                        if (vistaExportacao === 'quinzena2' && escalaIndex < 15) return null;
+                        return (
+                          <th key={escala.id} className="px-4 py-3 text-left font-semibold text-foreground border-r border-border min-w-[120px]">
+                            {escala.data}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -384,6 +426,8 @@ export default function Visualizar() {
                           {i + 1}
                         </td>
                         {escalas.map((escala, escalaIndex) => {
+                          if (vistaExportacao === 'quinzena1' && escalaIndex >= 15) return null;
+                          if (vistaExportacao === 'quinzena2' && escalaIndex < 15) return null;
                           const posicao = escala.posicoes[i];
                           const isDraggingOver = dragInfo && dragInfo.diaIndex === escalaIndex && dragInfo.posIndex !== i;
                           
