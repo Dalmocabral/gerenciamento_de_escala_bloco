@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/gerenciamento_de_escala_bloco/sw.js', { scope: '/gerenciamento_de_escala_bloco/' })})}
