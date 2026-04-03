@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // =============================================================================
@@ -150,7 +151,39 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(), 
+  tailwindcss(), 
+  jsxLocPlugin(), 
+  vitePluginManusRuntime(), 
+  vitePluginManusDebugCollector(),
+  VitePWA({
+    registerType: "autoUpdate",
+    injectRegister: "auto",
+    includeAssets: ["logo.svg"],
+    manifest: {
+      name: "Gerenciamento de Escala Bloco",
+      short_name: "Escala Bloco",
+      description: "Sistema Inteligente de Gestão de Escalas e Plantões",
+      theme_color: "#ffffff",
+      background_color: "#ffffff",
+      display: "standalone",
+      icons: [
+        {
+          src: "logo.svg",
+          sizes: "any",
+          type: "image/svg+xml",
+          purpose: "any maskable"
+        },
+        {
+          src: "logo.svg",
+          sizes: "192x192 512x512",
+          type: "image/svg+xml"
+        }
+      ]
+    }
+  })
+];
 
 export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? "/gerenciamento_de_escala_bloco/" : "/",
