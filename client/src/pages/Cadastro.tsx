@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Users, Pencil, X } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { User } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -24,6 +24,7 @@ export default function Cadastro() {
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletando, setDeletando] = useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   // Carregar usuários ao montar o componente
   useEffect(() => {
@@ -54,6 +55,20 @@ export default function Cadastro() {
     }
   };
 
+  const handleEdit = (usuario: User) => {
+    setEditandoId(usuario.id);
+    setNome(usuario.name);
+    setMatricula(usuario.matricula);
+    // Rolar para o topo caso esteja em mobile
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditandoId(null);
+    setNome('');
+    setMatricula('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -68,8 +83,9 @@ export default function Cadastro() {
       return;
     }
 
-    // Verificar se matrícula já existe
-    if (usuarios.some(u => u.matricula === matricula)) {
+    // Verificar se matrícula já existe para outro usuário
+    const matriculaExistente = usuarios.find(u => u.matricula === matricula);
+    if (matriculaExistente && matriculaExistente.id !== editandoId) {
       toast.error('Esta matrícula já está cadastrada');
       return;
     }
@@ -77,22 +93,65 @@ export default function Cadastro() {
     try {
       setLoading(true);
       
-      // Adicionar ao Firestore
-      await addDoc(collection(db, 'usuarios'), {
-        name: nome.trim(),
-        matricula: matricula.trim(),
-        createdAt: new Date()
-      });
+      if (editandoId) {
+        // Atualizar o próprio usuário
+        await updateDoc(doc(db, 'usuarios', editandoId), {
+          name: nome.trim(),
+          matricula: matricula.trim()
+        });
 
-      toast.success('Usuário cadastrado com sucesso!');
+        // ----------------------------------------------------
+        // Atualizar Nome/Matricula nas ESCALAS já geradas (NoSQL Fan-out)
+        // ----------------------------------------------------
+        const escalasSnapshot = await getDocs(collection(db, 'escalas'));
+        const promessasEscalas = escalasSnapshot.docs.map(async (escalaDoc) => {
+          const escalaData = escalaDoc.data();
+          let modificado = false;
+          
+          const novasPosicoes = escalaData.posicoes.map((pos: any) => {
+            if (pos && pos.usuarioId === editandoId) {
+              modificado = true;
+              return { ...pos, usuarioNome: nome.trim(), usuarioMatricula: matricula.trim() };
+            }
+            return pos;
+          });
+
+          if (modificado) {
+            return updateDoc(doc(db, 'escalas', escalaDoc.id), { posicoes: novasPosicoes });
+          }
+        });
+
+        // Atualizar nas FÉRIAS já registradas
+        const feriasSnapshot = await getDocs(collection(db, 'ferias'));
+        const promessasFerias = feriasSnapshot.docs.map(async (feriaDoc) => {
+          if (feriaDoc.data().usuarioId === editandoId) {
+            return updateDoc(doc(db, 'ferias', feriaDoc.id), { usuarioNome: nome.trim() });
+          }
+        });
+
+        await Promise.all([...promessasEscalas.filter(Boolean), ...promessasFerias.filter(Boolean)]);
+        // ----------------------------------------------------
+
+        toast.success('Usuário atualizado com sucesso em todas as escalas!');
+        setEditandoId(null);
+      } else {
+        // Adicionar novo
+        await addDoc(collection(db, 'usuarios'), {
+          name: nome.trim(),
+          matricula: matricula.trim(),
+          createdAt: new Date()
+        });
+        toast.success('Usuário cadastrado com sucesso!');
+      }
+
       setNome('');
       setMatricula('');
       
       // Recarregar lista
       await carregarUsuarios();
     } catch (error) {
-      console.error('Erro ao cadastrar:', error);
-      toast.error('Erro ao cadastrar usuário');
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar usuário');
     } finally {
       setLoading(false);
     }
@@ -143,9 +202,9 @@ export default function Cadastro() {
           {/* Formulário */}
           <Card className="lg:col-span-1 h-fit">
             <CardHeader>
-              <CardTitle>Novo Usuário</CardTitle>
+              <CardTitle>{editandoId ? 'Editar Usuário' : 'Novo Usuário'}</CardTitle>
               <CardDescription>
-                Preencha os dados do colaborador
+                {editandoId ? 'Atualize os dados do colaborador' : 'Preencha os dados do colaborador'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -172,14 +231,28 @@ export default function Cadastro() {
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={loading}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {loading ? 'Cadastrando...' : 'Cadastrar'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    disabled={loading}
+                  >
+                    <Plus className={`w-4 h-4 mr-2 ${editandoId ? 'hidden' : ''}`} />
+                    {loading ? (editandoId ? 'Salvando...' : 'Cadastrando...') : (editandoId ? 'Salvar Alterações' : 'Cadastrar')}
+                  </Button>
+                  
+                  {editandoId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={cancelEdit}
+                      disabled={loading}
+                      title="Cancelar Edição"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -217,15 +290,28 @@ export default function Cadastro() {
                         <p className="font-medium text-foreground">{usuario.name}</p>
                         <p className="text-sm text-muted-foreground">Matrícula: {usuario.matricula}</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(usuario.id)}
-                        disabled={deletando === usuario.id}
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(usuario)}
+                          disabled={deletando === usuario.id || editandoId === usuario.id}
+                          className="text-muted-foreground hover:text-primary transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(usuario.id)}
+                          disabled={deletando === usuario.id || editandoId === usuario.id}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -217,3 +217,29 @@
     @apply bg-muted/60 transition-colors duration-200;
   }
 }
+
+.social-links {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.social-btn:hover {
+  background-color: var(--primary-foreground);
+  color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}

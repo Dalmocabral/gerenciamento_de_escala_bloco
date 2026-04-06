@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calendar, Eye } from "lucide-react";
+import { Users, Calendar, Eye,  Github, Linkedin, Map } from "lucide-react";
 import { useLocation } from "wouter";
 
 /**
@@ -38,11 +38,9 @@ export default function Home() {
         {/* Hero Section */}
         <div className="mb-16 text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Gerencie suas escalas com facilidade
+            Escala do Bloco
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Sistema inteligente para criar, gerenciar e visualizar escalas de trabalho rotativas com suporte a férias e períodos específicos.
-          </p>
+          
         </div>
 
         {/* Cards Grid */}
@@ -137,7 +135,17 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border bg-card/30 mt-16 py-8">
         <div className="container text-center text-sm text-muted-foreground">
-          <p>© 2026 Escala de Trabalho. Sistema de gerenciamento de escalas rotativas.</p>
+          <p>Desenvolvido por <strong>Dalmo dos Santos Cabral</strong></p>
+          <div className="social-links">
+          <a href="https://github.com/Dalmocabral" target="_blank" rel="noopener noreferrer" className="social-btn">
+            <Github size={20} />
+            <span>GitHub</span>
+          </a>
+          <a href="https://www.linkedin.com/in/dalmo-cabral-062374131/" target="_blank" rel="noopener noreferrer" className="social-btn">
+            <Linkedin size={20} />
+            <span>LinkedIn</span>
+          </a>
+        </div>
         </div>
       </footer>
     </div>

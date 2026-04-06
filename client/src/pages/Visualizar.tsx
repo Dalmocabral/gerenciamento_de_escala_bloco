@@ -431,6 +431,11 @@ export default function Visualizar() {
                           const posicao = escala.posicoes[i];
                           const isDraggingOver = dragInfo && dragInfo.diaIndex === escalaIndex && dragInfo.posIndex !== i;
                           
+                          // Join Local em tempo real com a tabela mestra usando 'usuarios'
+                          const usuarioMaisRecente = usuarios.find(u => u.id === posicao?.usuarioId || String(u.matricula).trim() === String(posicao?.usuarioMatricula).trim());
+                          const nomeApresentar = usuarioMaisRecente ? usuarioMaisRecente.name : posicao?.usuarioNome;
+                          const matriculaApresentar = usuarioMaisRecente ? usuarioMaisRecente.matricula : posicao?.usuarioMatricula;
+
                           return (
                             <td 
                               key={escala.id} 
@@ -461,10 +466,10 @@ export default function Visualizar() {
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
                                   <span className="font-medium text-foreground pointer-events-none">
-                                    {posicao.usuarioNome}
+                                    {nomeApresentar}
                                   </span>
                                   <span className="text-xs text-muted-foreground mt-1 pointer-events-none">
-                                    {posicao.usuarioMatricula}
+                                    {matriculaApresentar}
                                   </span>
                                 </div>
                               ) : (
