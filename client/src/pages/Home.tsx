@@ -44,7 +44,7 @@ export default function Home() {
         </div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {/* Card 1: Cadastrar Usuário */}
           <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-border hover:border-primary/50 h-full flex flex-col"
             onClick={() => navigate("/cadastro")}>
@@ -116,6 +116,30 @@ export default function Home() {
                 className="w-full group-hover:border-primary group-hover:text-primary transition-colors"
               >
                 Visualizar
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Card 4: Folgas */}
+          <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-border hover:border-yellow-500/50 h-full flex flex-col"
+            onClick={() => navigate("/folgas")}>
+            <CardHeader className="pb-4">
+              <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center mb-3 group-hover:bg-yellow-500/20 transition-colors">
+                <Map className="w-6 h-6 text-yellow-600" />
+              </div>
+              <CardTitle className="text-xl">Definir Folgas</CardTitle>
+              <CardDescription>
+                Planejamento de Folgas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col justify-between">
+              <p className="text-sm text-muted-foreground mb-4">
+                Monte a escala do mês arrastando os colaboradores para seus dias de folga.
+              </p>
+              <Button 
+                variant="outline" 
+                className="w-full group-hover:border-yellow-600 group-hover:text-yellow-600 transition-colors"
+              >
+                Gerenciar Folgas
               </Button>
             </CardContent>
           </Card>

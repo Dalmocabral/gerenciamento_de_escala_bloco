@@ -8,7 +8,7 @@ import Home from "./pages/Home";
 import Cadastro from "./pages/Cadastro";
 import Gerar from "./pages/Gerar";
 import Visualizar from "./pages/Visualizar";
-
+import Folgas from "./pages/Folgas";
 
 const base = import.meta.env.DEV ? "/" : "/gerenciamento_de_escala_bloco";
 
@@ -20,6 +20,7 @@ function Router() {
         <Route path={"/cadastro"} component={Cadastro} />
         <Route path={"/gerar"} component={Gerar} />
         <Route path={"/visualizar"} component={Visualizar} />
+        <Route path={"/folgas"} component={Folgas} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />

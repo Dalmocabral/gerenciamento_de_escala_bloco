@@ -13,6 +13,7 @@ import { recalcularEscalas } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
 import * as htmlToImage from 'html-to-image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getDoc } from 'firebase/firestore';
 
 /**
  * Página de Visualização de Escala
@@ -27,6 +28,7 @@ export default function Visualizar() {
   const [escalas, setEscalas] = useState<Escala[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
+  const [folgasMap, setFolgasMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [dragEnabled, setDragEnabled] = useState(false);
@@ -54,6 +56,19 @@ export default function Visualizar() {
         });
       });
       setUsuarios(usuariosData);
+
+      // Carregar Folgas Mes para sobrepor na visualizacao
+      try {
+        const dRef = doc(db, 'folgas_mes', `${periodo}-${ano}`);
+        const folgasSnap = await getDoc(dRef);
+        if (folgasSnap.exists() && folgasSnap.data()?.diasOff) {
+          setFolgasMap(folgasSnap.data()?.diasOff);
+        } else {
+          setFolgasMap({});
+        }
+      } catch (err) {
+        console.warn("Erro ao puxar documento de folgas", err);
+      }
 
       // Carregar férias para o recálculo (apenas do período, ou todas)
       const feriasSnapshot = await getDocs(collection(db, 'ferias'));
@@ -436,10 +451,14 @@ export default function Visualizar() {
                           const nomeApresentar = usuarioMaisRecente ? usuarioMaisRecente.name : posicao?.usuarioNome;
                           const matriculaApresentar = usuarioMaisRecente ? usuarioMaisRecente.matricula : posicao?.usuarioMatricula;
 
+                          // Regra Folga
+                          const diaStr = escala.data.split('/')[0].padStart(2, '0');
+                          const ehFolga = usuarioMaisRecente && folgasMap[diaStr]?.includes(usuarioMaisRecente.id);
+
                           return (
                             <td 
                               key={escala.id} 
-                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
+                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' : ''} ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
                               draggable={dragEnabled && !!posicao && !isUpdating ? true : undefined}
                               onDragStart={dragEnabled ? (e) => {
                                 if (!posicao) return;
@@ -465,10 +484,13 @@ export default function Visualizar() {
                             >
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
-                                  <span className="font-medium text-foreground pointer-events-none">
-                                    {nomeApresentar}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground mt-1 pointer-events-none">
+                                  <div className="flex gap-1 items-center justify-between">
+                                    <span className={`font-medium pointer-events-none truncate ${ehFolga ? 'text-yellow-950 drop-shadow-sm' : 'text-foreground'}`}>
+                                      {nomeApresentar}
+                                    </span>
+                                    {ehFolga && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap">FOLGA</span>}
+                                  </div>
+                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga ? 'text-yellow-900/80 font-medium' : 'text-muted-foreground'}`}>
                                     {matriculaApresentar}
                                   </span>
                                 </div>
