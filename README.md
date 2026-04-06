@@ -12,10 +12,11 @@ O **Gerenciamento de Escala** é uma Single Page Application (SPA) moderna focad
 
 ## ✨ Funcionalidades Principais
 
-* 👥 **Gestão de Colaboradores e Férias**: Cadastro rápido de profissionais e registro antecipado de férias. O motor de escala *ignora automaticamente* profissionais em férias durante o preenchimento de suas datas de ausência.
-* 🧠 **Geração de Rodízio Contínua (Stateful)**: Capacidade avançada de puxar o estado estrutural do último dia do mês anterior para dar continuidade à cadeia de rotação no mês atual organicamente (Ex: Se João era o 1º no dia 31, ele naturalmente vai para o fim da fila no dia 1º, empurrando a equipe adequadamente).
-* 🖱️ **"Modo Reorganizar" (Drag & Drop)**: Interface interativa tátil! Ative o modo de reorganização na tela de Visualização, clique em um funcionário e "solte-o" em outra posição no mesmo dia. O sistema processa a troca em memória e **recalcula recursivamente** todos os dias do restante do mês, salvando as centenas de novos cálculos em lote (*Batch Write*) no Firestore em milissegundos.
-* 📱 **Mobile UI & Compartilhamento Instantâneo**: A tela se adapta visualmente, e a proteção nativa antiesbarrões impede que o celular role acidentalmente as células. A escala final pode ser exportada integralmente como **CSV** (para Excel) ou renderizada de forma responsiva como uma **Imagem (.png)** super nítida usando `html-to-image`, pronta para compartilhamento no WhatsApp/Telegram.
+* 👥 **Gestão de Colaboradores Avançada**: Cadastro rápido, edição (com espelhamento retroativo nas escalas antigas) e controle estrito de matrículas.
+* 🏖️ **Escala de Folgas (Novo)**: Uma tela interativa no formato de calendário para organização de folgas. Através do recurso de Drag-and-Drop, o gestor arrasta o nome do colaborador para o dia específico. Quando configurada, a folga é **destacada automaticamente em amarelo** (marca-texto) no cruzeio da Escala Geral.
+* 🧠 **Geração de Rodízio Contínua (Stateful)**: Capacidade avançada de puxar o estado estrutural do último dia do mês anterior para dar continuidade à cadeia de rotação no mês atual organicamente. O algoritmo também ignora profissionais no período de Férias cadastradas.
+* 🖱️ **"Modo Reorganizar" (Drag & Drop)**: Alteração manual da cadeia gerada de forma tátil! Ative o modo na tela de Visualização, clique num funcionário e "solte-o" em outra posição no mesmo dia. O sistema processa a troca em memória e recalcula todos os dias sucessivos, salvando tudo em lotes (*Batch Write*).
+* 📱 **PWA Integrado & Compartilhamento Moderno**: Totalmente instalável em Android, iOS e Windows como um app nativo (*Progressive Web App*). A visualização conta com proteção touch, e a escala pode ser fatiada e exportada em formato PNG de altíssima definição (`html-to-image`) (Mês inteiro ou em Quinzenas) para rápido disparo via WhatsApp.
 
 ---
 
