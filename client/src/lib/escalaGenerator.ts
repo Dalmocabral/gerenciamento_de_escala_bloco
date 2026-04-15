@@ -65,8 +65,8 @@ export function gerarEscala(
     const dataChave = `${diaFormatado}/${periodo}`;
     const usuariosEmFeriasHoje = usuariosEmFerias.get(dataChave) || new Set();
 
-    // Filtrar usuários que não estão em férias hoje para criar posições
-    const usuariosDisponiveis = currentBaseOrder.filter(u => !usuariosEmFeriasHoje.has(u.id));
+    // Modificação: Usuários em férias não são mais retirados da escala.
+    const usuariosDisponiveis = [...currentBaseOrder];
 
     if (usuariosDisponiveis.length === 0) {
       const posicoes = currentBaseOrder.map((user, index) => ({
@@ -155,7 +155,7 @@ export function recalcularEscalas(
     const dataChave = escalaAtual.data; 
     const usuariosEmFeriasHoje = usuariosEmFerias.get(dataChave) || new Set();
 
-    const usuariosDisponiveis = currentBaseOrder.filter(u => !usuariosEmFeriasHoje.has(u.id));
+    const usuariosDisponiveis = [...currentBaseOrder];
 
     if (usuariosDisponiveis.length === 0) {
       novaEscalas[i] = {

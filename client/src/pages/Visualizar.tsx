@@ -455,10 +455,24 @@ export default function Visualizar() {
                           const diaStr = escala.data.split('/')[0].padStart(2, '0');
                           const ehFolga = usuarioMaisRecente && folgasMap[diaStr]?.includes(usuarioMaisRecente.id);
 
+                          // Regra Férias
+                          const diaNumero = parseInt(diaStr);
+                          const feriasMatch = usuarioMaisRecente ? ferias.find(f => {
+                            if (f.usuarioId !== usuarioMaisRecente.id || f.periodo !== periodo || f.ano !== ano) return false;
+                            const dInicio = parseInt(f.dataInicio.split('/')[0]);
+                            const dFim = parseInt(f.dataFim.split('/')[0]);
+                            return diaNumero >= dInicio && diaNumero <= dFim;
+                          }) : null;
+                          const ehFerias = !!feriasMatch;
+
+                          const bgColor = ehFerias ? 'bg-red-100 shadow-inner ring-1 ring-red-300' 
+                                        : ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' 
+                                        : '';
+
                           return (
                             <td 
                               key={escala.id} 
-                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' : ''} ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
+                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${bgColor} ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
                               draggable={dragEnabled && !!posicao && !isUpdating ? true : undefined}
                               onDragStart={dragEnabled ? (e) => {
                                 if (!posicao) return;
@@ -485,12 +499,13 @@ export default function Visualizar() {
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
                                   <div className="flex gap-1 items-center justify-between">
-                                    <span className={`font-medium pointer-events-none truncate ${ehFolga ? 'text-yellow-950 drop-shadow-sm' : 'text-foreground'}`}>
+                                    <span className={`font-medium pointer-events-none truncate ${ehFolga || ehFerias ? 'text-foreground/90 drop-shadow-sm' : 'text-foreground'}`}>
                                       {nomeApresentar}
                                     </span>
-                                    {ehFolga && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap">FOLGA</span>}
+                                    {ehFolga && !ehFerias && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap">FOLGA</span>}
+                                    {ehFerias && <span className="text-[9px] font-bold bg-red-300 text-red-950 px-1 py-0.5 rounded shadow-sm border border-red-400 whitespace-nowrap">FÉRIAS</span>}
                                   </div>
-                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga ? 'text-yellow-900/80 font-medium' : 'text-muted-foreground'}`}>
+                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga || ehFerias ? 'text-foreground/70 font-medium' : 'text-muted-foreground'}`}>
                                     {matriculaApresentar}
                                   </span>
                                 </div>
