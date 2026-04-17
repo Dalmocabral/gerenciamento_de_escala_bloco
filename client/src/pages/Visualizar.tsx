@@ -9,7 +9,7 @@ import { ArrowLeft, Calendar, Download, AlertCircle, Camera } from 'lucide-react
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, writeBatch, doc } from 'firebase/firestore';
 import { Escala, PERIODOS, Periodo, User, Ferias } from '@/lib/types';
-import { recalcularEscalas } from '@/lib/escalaGenerator';
+import { recalcularEscalas, estaEmFerias } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
 import * as htmlToImage from 'html-to-image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -117,6 +117,7 @@ export default function Visualizar() {
           posicoes: doc.data().posicoes,
           periodo: doc.data().periodo,
           ano: doc.data().ano,
+          removerFerias: doc.data().removerFerias,
           createdAt: doc.data().createdAt?.toDate() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate() || new Date()
         });
@@ -250,14 +251,15 @@ export default function Visualizar() {
         usuarioMatricula: source.usuarioMatricula 
       };
 
-      const feriasDoPeríodo = ferias.filter(f => f.periodo === periodo && f.ano === ano);
+      const removerFeriasPref = escalas[diaIndex]?.removerFerias ?? false;
       
       const novasEscalas = recalcularEscalas(
         escalas,
         diaIndex,
         novasPosicoes,
         usuarios,
-        feriasDoPeríodo
+        ferias,
+        removerFeriasPref
       );
 
       setEscalas(novasEscalas);
@@ -474,14 +476,7 @@ export default function Visualizar() {
                           const ehFolga = usuarioMaisRecente && folgasMap[diaStr]?.includes(usuarioMaisRecente.id);
 
                           // Regra Férias
-                          const diaNumero = parseInt(diaStr);
-                          const feriasMatch = usuarioMaisRecente ? ferias.find(f => {
-                            if (f.usuarioId !== usuarioMaisRecente.id || f.periodo !== periodo || f.ano !== ano) return false;
-                            const dInicio = parseInt(f.dataInicio.split('/')[0]);
-                            const dFim = parseInt(f.dataFim.split('/')[0]);
-                            return diaNumero >= dInicio && diaNumero <= dFim;
-                          }) : null;
-                          const ehFerias = !!feriasMatch;
+                          const ehFerias = usuarioMaisRecente ? estaEmFerias(usuarioMaisRecente.id, `${diaStr}/${periodo}`, ferias, ano) : false;
 
                           const bgColor = ehFerias ? 'bg-red-100 shadow-inner ring-1 ring-red-300' 
                                         : ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' 

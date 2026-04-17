@@ -13,6 +13,7 @@ export interface Escala {
   posicoes: PosicaoEscala[];
   periodo: string; // janeiro, fevereiro, etc
   ano: number;
+  removerFerias?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,10 +29,10 @@ export interface Ferias {
   id: string;
   usuarioId: string;
   usuarioNome: string;
-  dataInicio: string; // DD/MM
-  dataFim: string; // DD/MM
-  periodo: string; // janeiro, fevereiro, etc
-  ano: number;
+  dataInicio: string; // YYYY-MM-DD (novo) ou DD/MM ou DD (legado)
+  dataFim: string; // YYYY-MM-DD (novo) ou DD/MM ou DD (legado)
+  periodo?: string; // legados (janeiro, fevereiro, etc)
+  ano?: number; // legados
   createdAt: Date;
 }
 

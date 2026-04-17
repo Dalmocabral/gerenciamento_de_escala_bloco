@@ -1,5 +1,33 @@
 import { User, Escala, PosicaoEscala, Ferias, Periodo, getDiasNoMes } from './types';
 
+export const getMesIndex = (mes: string) => {
+  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  return meses.indexOf(mes.toLowerCase());
+};
+
+export function parseFeriaDates(feria: Ferias): { start: number, end: number } | null {
+  try {
+    if (feria.dataInicio.includes('-')) {
+      // Formato novo YYYY-MM-DD
+      const start = new Date(feria.dataInicio + 'T00:00:00').getTime();
+      const end = new Date(feria.dataFim + 'T23:59:59').getTime();
+      return { start, end };
+    } else {
+      // Formato legado DD ou DD/MM
+      if (!feria.periodo || !feria.ano) return null;
+      const mIdx = getMesIndex(feria.periodo);
+      const dIni = parseInt(feria.dataInicio.split('/')[0]);
+      const dFim = parseInt(feria.dataFim.split('/')[0]);
+      
+      const start = new Date(feria.ano, mIdx, dIni, 0, 0, 0).getTime();
+      const end = new Date(feria.ano, mIdx, dFim, 23, 59, 59).getTime();
+      return { start, end };
+    }
+  } catch (e) {
+    return null;
+  }
+}
+
 /**
  * Gera a escala rotativa para um período específico
  * A escala roda diariamente com os usuários em posições rotativas
@@ -15,7 +43,8 @@ export function gerarEscala(
   periodo: Periodo,
   ano: number,
   ferias: Ferias[] = [],
-  ordemAnterior?: User[]
+  ordemAnterior?: User[],
+  removerFerias: boolean = false
 ): Escala[] {
   if (users.length === 0) {
     return [];
@@ -24,23 +53,9 @@ export function gerarEscala(
   const diasNoMes = getDiasNoMes(periodo, ano);
   const escalas: Escala[] = [];
 
-  // Criar um mapa de usuários em férias por data
-  const usuariosEmFerias = new Map<string, Set<string>>();
-  
-  ferias.forEach(feria => {
-    if (feria.periodo === periodo && feria.ano === ano) {
-      const dataInicio = parseInt(feria.dataInicio.split('/')[0]);
-      const dataFim = parseInt(feria.dataFim.split('/')[0]);
-      
-      for (let dia = dataInicio; dia <= dataFim; dia++) {
-        const chave = `${String(dia).padStart(2, '0')}/${periodo}`;
-        if (!usuariosEmFerias.has(chave)) {
-          usuariosEmFerias.set(chave, new Set());
-        }
-        usuariosEmFerias.get(chave)!.add(feria.usuarioId);
-      }
-    }
-  });
+  // Analisar datas de férias ativas
+  const parsedFerias = ferias.map(f => ({ ...f, range: parseFeriaDates(f) })).filter(f => f.range) as (Ferias & { range: {start: number, end: number} })[];
+  const mesIndexAtual = getMesIndex(periodo);
 
   // Determinar a ordem base inicial
   let currentBaseOrder = [...users];
@@ -63,10 +78,19 @@ export function gerarEscala(
   for (let dia = 1; dia <= diasNoMes; dia++) {
     const diaFormatado = String(dia).padStart(2, '0');
     const dataChave = `${diaFormatado}/${periodo}`;
-    const usuariosEmFeriasHoje = usuariosEmFerias.get(dataChave) || new Set();
+    
+    const diaTimestamp = new Date(ano, mesIndexAtual, dia, 12, 0, 0).getTime();
+    const usuariosEmFeriasHoje = new Set<string>();
+    parsedFerias.forEach(pf => {
+      if (diaTimestamp >= pf.range.start && diaTimestamp <= pf.range.end) {
+        usuariosEmFeriasHoje.add(pf.usuarioId);
+      }
+    });
 
-    // Modificação: Usuários em férias não são mais retirados da escala.
-    const usuariosDisponiveis = [...currentBaseOrder];
+    // Modificação: Usuários em férias serão retirados condicionalmente com base na escolha do usuário.
+    const usuariosDisponiveis = removerFerias
+      ? currentBaseOrder.filter(u => !usuariosEmFeriasHoje.has(u.id))
+      : [...currentBaseOrder];
 
     if (usuariosDisponiveis.length === 0) {
       const posicoes = currentBaseOrder.map((user, index) => ({
@@ -81,6 +105,7 @@ export function gerarEscala(
         posicoes,
         periodo,
         ano,
+        removerFerias,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -98,6 +123,7 @@ export function gerarEscala(
         posicoes,
         periodo,
         ano,
+        removerFerias,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -116,7 +142,8 @@ export function recalcularEscalas(
   diaModificadoIndex: number,
   novaOrdemPosicoes: PosicaoEscala[],
   todosUsuarios: User[],
-  ferias: Ferias[]
+  ferias: Ferias[],
+  removerFerias: boolean = false
 ): Escala[] {
   const novaEscalas = [...escalasExistentes];
   
@@ -135,27 +162,26 @@ export function recalcularEscalas(
   const tail = currentBaseOrder.pop();
   if (tail) currentBaseOrder.unshift(tail);
 
-  const usuariosEmFerias = new Map<string, Set<string>>();
-  
-  ferias.forEach(feria => {
-    const dataInicio = parseInt(feria.dataInicio.split('/')[0]);
-    const dataFim = parseInt(feria.dataFim.split('/')[0]);
-    
-    for (let dia = dataInicio; dia <= dataFim; dia++) {
-      const chave = `${String(dia).padStart(2, '0')}/${feria.periodo}`; 
-      if (!usuariosEmFerias.has(chave)) {
-        usuariosEmFerias.set(chave, new Set());
-      }
-      usuariosEmFerias.get(chave)!.add(feria.usuarioId);
-    }
-  });
+  const parsedFerias = ferias.map(f => ({ ...f, range: parseFeriaDates(f) })).filter(f => f.range) as (Ferias & { range: {start: number, end: number} })[];
 
   for (let i = diaModificadoIndex + 1; i < novaEscalas.length; i++) {
     const escalaAtual = novaEscalas[i];
     const dataChave = escalaAtual.data; 
-    const usuariosEmFeriasHoje = usuariosEmFerias.get(dataChave) || new Set();
+    
+    const [diaStr, periodoStr] = dataChave.split('/');
+    const pStr = periodoStr || escalaAtual.periodo;
+    const diaTimestamp = new Date(escalaAtual.ano || (new Date().getFullYear()), getMesIndex(pStr), parseInt(diaStr), 12, 0, 0).getTime();
+    
+    const usuariosEmFeriasHoje = new Set<string>();
+    parsedFerias.forEach(pf => {
+      if (diaTimestamp >= pf.range.start && diaTimestamp <= pf.range.end) {
+        usuariosEmFeriasHoje.add(pf.usuarioId);
+      }
+    });
 
-    const usuariosDisponiveis = [...currentBaseOrder];
+    const usuariosDisponiveis = removerFerias
+      ? currentBaseOrder.filter(u => !usuariosEmFeriasHoje.has(u.id))
+      : [...currentBaseOrder];
 
     if (usuariosDisponiveis.length === 0) {
       novaEscalas[i] = {
@@ -206,22 +232,16 @@ export function formatarData(data: string, periodo: Periodo): string {
 export function estaEmFerias(
   usuarioId: string,
   data: string,
-  ferias: Ferias[]
+  ferias: Ferias[],
+  ano?: number
 ): boolean {
-  return ferias.some(feria => {
-    const [diaData] = data.split('/');
-    const [diaInicio] = feria.dataInicio.split('/');
-    const [diaFim] = feria.dataFim.split('/');
-    
-    const dia = parseInt(diaData);
-    const inicio = parseInt(diaInicio);
-    const fim = parseInt(diaFim);
-    
-    return (
-      feria.usuarioId === usuarioId &&
-      dia >= inicio &&
-      dia <= fim
-    );
+  const parsedFerias = ferias.map(f => ({ ...f, range: parseFeriaDates(f) })).filter(f => f.range) as (Ferias & { range: {start: number, end: number} })[];
+  const [diaStr, periodoStr] = data.split('/');
+  const yr = ano || new Date().getFullYear();
+  const diaTimestamp = new Date(yr, getMesIndex(periodoStr), parseInt(diaStr), 12, 0, 0).getTime();
+
+  return parsedFerias.some(pf => {
+    return pf.usuarioId === usuarioId && diaTimestamp >= pf.range.start && diaTimestamp <= pf.range.end;
   });
 }
 

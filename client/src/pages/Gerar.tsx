@@ -9,7 +9,7 @@ import { ArrowLeft, Calendar, Plus, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { User, Escala, Ferias, PERIODOS, Periodo, getDiasNoMes } from '@/lib/types';
-import { gerarEscala } from '@/lib/escalaGenerator';
+import { gerarEscala, parseFeriaDates, getMesIndex } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
@@ -26,6 +26,7 @@ export default function Gerar() {
   const [periodo, setPeriodo] = useState<Periodo>('janeiro');
   const [ano, setAno] = useState(new Date().getFullYear());
   const [tipoGeracao, setTipoGeracao] = useState<'continuar' | 'novo'>('continuar');
+  const [removerFerias, setRemoverFerias] = useState(false);
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,17 +94,8 @@ export default function Gerar() {
       return;
     }
 
-    const inicio = parseInt(dataInicio);
-    const fim = parseInt(dataFim);
-
-    if (inicio > fim) {
+    if (new Date(dataInicio) > new Date(dataFim)) {
       toast.error('Data de início não pode ser maior que data de fim');
-      return;
-    }
-
-    const diasNoMes = getDiasNoMes(periodo, ano);
-    if (inicio > diasNoMes || fim > diasNoMes) {
-      toast.error(`Data inválida para ${periodo} (máximo ${diasNoMes} dias)`);
       return;
     }
 
@@ -114,10 +106,8 @@ export default function Gerar() {
       await addDoc(collection(db, 'ferias'), {
         usuarioId: usuarioFeriasId,
         usuarioNome: usuario.name,
-        dataInicio: String(inicio).padStart(2, '0'),
-        dataFim: String(fim).padStart(2, '0'),
-        periodo,
-        ano,
+        dataInicio: dataInicio,
+        dataFim: dataFim,
         createdAt: new Date()
       });
 
@@ -199,11 +189,18 @@ export default function Gerar() {
         }
       }
 
-      // Filtrar férias do período selecionado
-      const feriasDoPeríodo = ferias.filter(f => f.periodo === periodo && f.ano === ano);
+      const mesIndexGerar = getMesIndex(periodo);
+      const startMes = new Date(ano, mesIndexGerar, 1).getTime();
+      const endMes = new Date(ano, mesIndexGerar, getDiasNoMes(periodo, ano), 23, 59, 59).getTime();
+
+      const feriasDoPeríodo = ferias.filter(f => {
+        const parsed = parseFeriaDates(f);
+        if (!parsed) return false;
+        return parsed.start <= endMes && parsed.end >= startMes;
+      });
 
       // Gerar escala
-      const escalas = gerarEscala(usuarios, periodo, ano, feriasDoPeríodo, ordemAnterior);
+      const escalas = gerarEscala(usuarios, periodo, ano, feriasDoPeríodo, ordemAnterior, removerFerias);
 
       // Deletar escalas antigas do mesmo período
       const q = query(
@@ -223,6 +220,7 @@ export default function Gerar() {
           posicoes: escala.posicoes,
           periodo: escala.periodo,
           ano: escala.ano,
+          removerFerias: escala.removerFerias ?? removerFerias,
           createdAt: new Date(),
           updatedAt: new Date()
         });
@@ -240,7 +238,15 @@ export default function Gerar() {
     }
   };
 
-  const feriasDoPeríodo = ferias.filter(f => f.periodo === periodo && f.ano === ano);
+  const mesIndexTela = getMesIndex(periodo);
+  const startMesTela = new Date(ano, mesIndexTela, 1).getTime();
+  const endMesTela = new Date(ano, mesIndexTela, getDiasNoMes(periodo, ano), 23, 59, 59).getTime();
+
+  const feriasDoPeríodoVisor = ferias.filter(f => {
+    const parsed = parseFeriaDates(f);
+    if (!parsed) return false;
+    return parsed.start <= endMesTela && parsed.end >= startMesTela;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5">
@@ -317,6 +323,20 @@ export default function Gerar() {
                 </RadioGroup>
               </div>
 
+              <div className="space-y-3 pt-2 pb-1 border-t border-border mt-2 mb-4">
+                <Label>Colaboradores em Férias</Label>
+                <RadioGroup value={removerFerias ? 'remover' : 'manter'} onValueChange={(v) => setRemoverFerias(v === 'remover')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="remover" id="f1" />
+                    <Label htmlFor="f1" className="font-normal cursor-pointer text-sm">Remover da escala durante as férias</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="manter" id="f2" />
+                    <Label htmlFor="f2" className="font-normal cursor-pointer text-sm">Manter na posição (Rotacionar junto)</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <Button
                 onClick={handleGerarEscala}
                 className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
@@ -339,7 +359,7 @@ export default function Gerar() {
             <CardHeader>
               <CardTitle>Férias - {periodo.charAt(0).toUpperCase() + periodo.slice(1)}</CardTitle>
               <CardDescription>
-                Marque colaboradores em férias ({feriasDoPeríodo.length})
+                Marque e veja as férias do período ({feriasDoPeríodoVisor.length})
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -363,27 +383,21 @@ export default function Gerar() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="data-inicio">Início (dia)</Label>
+                    <Label htmlFor="data-inicio">Data Início</Label>
                     <Input
                       id="data-inicio"
-                      type="number"
-                      placeholder="1"
+                      type="date"
                       value={dataInicio}
                       onChange={(e) => setDataInicio(e.target.value)}
-                      min="1"
-                      max={getDiasNoMes(periodo, ano)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="data-fim">Fim (dia)</Label>
+                    <Label htmlFor="data-fim">Data Fim</Label>
                     <Input
                       id="data-fim"
-                      type="number"
-                      placeholder="5"
+                      type="date"
                       value={dataFim}
                       onChange={(e) => setDataFim(e.target.value)}
-                      min="1"
-                      max={getDiasNoMes(periodo, ano)}
                     />
                   </div>
                 </div>
@@ -399,34 +413,44 @@ export default function Gerar() {
               </form>
 
               {/* Lista de Férias */}
-              {feriasDoPeríodo.length === 0 ? (
+              {feriasDoPeríodoVisor.length === 0 ? (
                 <div className="text-center py-8">
                   <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground">Nenhuma féria registrada</p>
+                  <p className="text-muted-foreground">Nenhuma férias preenchendo este mês</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {feriasDoPeríodo.map((feria) => (
-                    <div
-                      key={feria.id}
-                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/60 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{feria.usuarioNome}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {feria.dataInicio} a {feria.dataFim} de {periodo}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteFerias(feria.id)}
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                  {feriasDoPeríodoVisor.map((feria) => {
+                    const formatData = (isoStr: string) => {
+                       if(isoStr.includes('-')) {
+                          const [y, m, d] = isoStr.split('-');
+                          return `${d}/${m}/${y}`;
+                       }
+                       return `${isoStr}/${feria.periodo}/${feria.ano}`; // legacy fallback
+                    }
+
+                    return (
+                      <div
+                        key={feria.id}
+                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/60 transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">{feria.usuarioNome}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatData(feria.dataInicio)} a {formatData(feria.dataFim)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteFerias(feria.id)}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
