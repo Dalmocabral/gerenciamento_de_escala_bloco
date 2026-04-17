@@ -15,6 +15,20 @@ import * as htmlToImage from 'html-to-image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getDoc } from 'firebase/firestore';
 
+const getMesIndex = (mes: string) => {
+  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  return meses.indexOf(mes.toLowerCase());
+};
+
+const formatDataComDiaSemana = (diaStr: string, mesStr: string, anoNum: number) => {
+  const dia = parseInt(diaStr.split('/')[0]);
+  const mesIndex = getMesIndex(mesStr);
+  if (mesIndex === -1) return { dia: diaStr, semana: '' };
+  const date = new Date(anoNum, mesIndex, dia);
+  const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  return { dia: diaStr, semana: diasSemana[date.getDay()] };
+};
+
 /**
  * Página de Visualização de Escala
  * 
@@ -136,7 +150,9 @@ export default function Visualizar() {
     // Criar cabeçalho
     let csv = 'Posição';
     escalas.forEach(escala => {
-      csv += `,${escala.data}`;
+      const formatado = formatDataComDiaSemana(escala.data, periodo, ano);
+      const csvData = formatado.semana ? `${formatado.semana}, ${formatado.dia}` : formatado.dia;
+      csv += `,${csvData}`;
     });
     csv += '\n';
 
@@ -423,9 +439,11 @@ export default function Visualizar() {
                       {escalas.map((escala, escalaIndex) => {
                         if (vistaExportacao === 'quinzena1' && escalaIndex >= 15) return null;
                         if (vistaExportacao === 'quinzena2' && escalaIndex < 15) return null;
+                        const dataInfo = formatDataComDiaSemana(escala.data, periodo, ano);
                         return (
-                          <th key={escala.id} className="px-4 py-3 text-left font-semibold text-foreground border-r border-border min-w-[120px]">
-                            {escala.data}
+                          <th key={escala.id} className="px-4 py-3 text-left font-semibold text-foreground border-r border-border min-w-[120px] whitespace-nowrap">
+                            {dataInfo.semana && <span className="text-muted-foreground font-normal mr-1">{dataInfo.semana},</span>}
+                            {dataInfo.dia}
                           </th>
                         );
                       })}
