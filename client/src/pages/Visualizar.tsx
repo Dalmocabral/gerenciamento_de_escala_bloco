@@ -5,9 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
-import { ArrowLeft, Calendar, Download, AlertCircle, Camera } from 'lucide-react';
+import { ArrowLeft, Calendar, Download, AlertCircle, Camera, ChevronDown } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, writeBatch, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, writeBatch, doc, updateDoc } from 'firebase/firestore';
 import { Escala, PERIODOS, Periodo, User, Ferias } from '@/lib/types';
 import { recalcularEscalas, estaEmFerias } from '@/lib/escalaGenerator';
 import { toast } from 'sonner';
@@ -284,6 +284,30 @@ export default function Visualizar() {
     }
   };
 
+  const handleSetFolgaFeriado = async (diaIndex: number, posIndex: number, newValue: boolean) => {
+    try {
+      setIsUpdating(true);
+      const novasEscalas = [...escalas];
+      const novaEscala = { ...novasEscalas[diaIndex] };
+      const novasPosicoes = [...novaEscala.posicoes];
+      novasPosicoes[posIndex] = { ...novasPosicoes[posIndex], isFolgaFeriado: newValue };
+      novaEscala.posicoes = novasPosicoes;
+      novasEscalas[diaIndex] = novaEscala;
+      
+      setEscalas(novasEscalas);
+      
+      const docRef = doc(db, 'escalas', novaEscala.id);
+      await updateDoc(docRef, { posicoes: novasPosicoes, updatedAt: new Date() });
+      toast.success(newValue ? 'Folga Feriado aplicada!' : 'Folga Feriado removida!');
+    } catch (error) {
+      console.error('Erro ao atualizar folga feriado:', error);
+      toast.error('Erro ao salvar folga feriado');
+      carregarEscalas(); // Reverte p/ db state se falhar
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5">
       {/* Header */}
@@ -478,14 +502,17 @@ export default function Visualizar() {
                           // Regra Férias
                           const ehFerias = usuarioMaisRecente ? estaEmFerias(usuarioMaisRecente.id, `${diaStr}/${periodo}`, ferias, ano) : false;
 
+                          const isFolgaFeriado = posicao?.isFolgaFeriado;
+
                           const bgColor = ehFerias ? 'bg-red-100 shadow-inner ring-1 ring-red-300' 
+                                        : isFolgaFeriado ? 'bg-[#f4cdab] shadow-inner ring-1 ring-[#e2a87a]'
                                         : ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' 
                                         : '';
 
                           return (
                             <td 
                               key={escala.id} 
-                              className={`px-4 py-3 text-sm border-r border-border transition-colors ${bgColor} ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
+                              className={`px-4 py-3 text-sm border-r border-border transition-colors group relative ${bgColor} ${isDraggingOver ? 'bg-primary/10 border-primary rounded ring-1 ring-primary relative z-10' : ''}`}
                               draggable={dragEnabled && !!posicao && !isUpdating ? true : undefined}
                               onDragStart={dragEnabled ? (e) => {
                                 if (!posicao) return;
@@ -512,15 +539,32 @@ export default function Visualizar() {
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
                                   <div className="flex gap-1 items-center justify-between">
-                                    <span className={`font-medium pointer-events-none truncate ${ehFolga || ehFerias ? 'text-foreground/90 drop-shadow-sm' : 'text-foreground'}`}>
+                                    <span className={`font-medium pointer-events-none truncate ${ehFolga || ehFerias || isFolgaFeriado ? 'text-foreground/90 drop-shadow-sm' : 'text-foreground'}`}>
                                       {nomeApresentar}
                                     </span>
-                                    {ehFolga && !ehFerias && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap">FOLGA</span>}
-                                    {ehFerias && <span className="text-[9px] font-bold bg-red-300 text-red-950 px-1 py-0.5 rounded shadow-sm border border-red-400 whitespace-nowrap">FÉRIAS</span>}
+                                    {isFolgaFeriado && !ehFerias && <span className="text-[9px] font-bold text-[#b45a1c] whitespace-nowrap italic drop-shadow-sm z-10">Folga Feriado</span>}
+                                    {ehFolga && !ehFerias && !isFolgaFeriado && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap z-10">FOLGA</span>}
+                                    {ehFerias && <span className="text-[9px] font-bold bg-red-300 text-red-950 px-1 py-0.5 rounded shadow-sm border border-red-400 whitespace-nowrap z-10">FÉRIAS</span>}
                                   </div>
-                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga || ehFerias ? 'text-foreground/70 font-medium' : 'text-muted-foreground'}`}>
+                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga || ehFerias || isFolgaFeriado ? 'text-foreground/70 font-medium' : 'text-muted-foreground'}`}>
                                     {matriculaApresentar}
                                   </span>
+
+                                  {/* Dropdown Menu para Folga Feriado (oculto até o hover) */}
+                                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className={`h-5 w-5 rounded shadow-sm border border-border/50 ${isFolgaFeriado ? 'bg-[#e2a87a]/40 hover:bg-[#e2a87a]/60 text-[#b45a1c]' : 'bg-background/80 hover:bg-background text-foreground'}`}>
+                                          <ChevronDown className="h-3 w-3" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleSetFolgaFeriado(escalaIndex, i, !isFolgaFeriado)} className="cursor-pointer text-xs">
+                                          {isFolgaFeriado ? 'Remover Folga Feriado' : 'Marcar Folga Feriado'}
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground/50">-</span>
