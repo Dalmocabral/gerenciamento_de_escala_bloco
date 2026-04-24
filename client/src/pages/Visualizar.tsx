@@ -196,8 +196,20 @@ export default function Visualizar() {
       // Timeout para permitir que o React processe a ocultação das colunas
       setTimeout(async () => {
         try {
-          const dataUrl = await htmlToImage.toPng(tableRef.current!, {
-            pixelRatio: 2, 
+          const node = tableRef.current!;
+          const width = node.scrollWidth;
+          const height = node.scrollHeight;
+
+          const dataUrl = await htmlToImage.toPng(node, {
+            pixelRatio: window.devicePixelRatio ? Math.max(window.devicePixelRatio, 2) : 2,
+            width: width,
+            height: height,
+            style: {
+              width: `${width}px`,
+              height: `${height}px`,
+              transform: 'scale(1)',
+              transformOrigin: 'top left',
+            },
             backgroundColor: document.documentElement.classList.contains('dark') ? '#09090b' : '#ffffff',
           });
           
