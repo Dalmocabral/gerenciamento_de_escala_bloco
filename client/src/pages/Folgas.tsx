@@ -220,20 +220,27 @@ export default function Folgas() {
                </CardHeader>
                <CardContent className="p-4 sm:p-6">
                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                   {diasArray.map(dia => {
-                     const diaStr = String(dia).padStart(2, '0');
-                     const funcionariosNoDia = folgasMap[diaStr] || [];
+                     {diasArray.map(dia => {
+                       const diaStr = String(dia).padStart(2, '0');
+                       const funcionariosNoDia = folgasMap[diaStr] || [];
+                       
+                       const mesIndex = PERIODOS.indexOf(periodo);
+                       const diaDaSemanaIndex = new Date(ano, mesIndex, dia).getDay();
+                       const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                       const nomeSemana = diasSemana[diaDaSemanaIndex];
 
-                     return (
-                       <div
-                         key={dia}
-                         onDragOver={handleDragOver}
-                         onDrop={(e) => handleDrop(e, dia)}
-                         className="flex flex-col min-h-[140px] border border-dashed border-border rounded-lg bg-accent/5 hover:bg-accent/10 transition-colors overflow-hidden"
-                       >
-                         <div className="w-full bg-muted/40 border-b border-border/50 p-2 py-1.5 flex justify-between items-center">
-                           <span className="text-sm font-bold text-foreground">Dia {diaStr}</span>
-                           {funcionariosNoDia.length > 0 && <span className="text-[10px] bg-primary/20 text-primary-foreground font-bold px-1.5 py-0.5 rounded-full">{funcionariosNoDia.length}</span>}
+                       return (
+                         <div
+                           key={dia}
+                           onDragOver={handleDragOver}
+                           onDrop={(e) => handleDrop(e, dia)}
+                           className={`flex flex-col min-h-[140px] border rounded-lg transition-colors overflow-hidden ${diaDaSemanaIndex === 0 || diaDaSemanaIndex === 6 ? 'bg-accent/10 border-primary/20 hover:bg-accent/20' : 'bg-accent/5 border-dashed border-border hover:bg-accent/10'}`}
+                         >
+                           <div className="w-full bg-muted/40 border-b border-border/50 p-2 py-1.5 flex justify-between items-center">
+                             <span className="text-sm font-bold text-foreground">
+                               Dia {diaStr} <span className="text-xs font-normal text-muted-foreground ml-1">({nomeSemana})</span>
+                             </span>
+                             {funcionariosNoDia.length > 0 && <span className="text-[10px] bg-primary/20 text-primary-foreground font-bold px-1.5 py-0.5 rounded-full">{funcionariosNoDia.length}</span>}
                          </div>
                          <div className="flex-1 p-2 flex flex-col gap-1.5 overflow-y-auto">
                            {funcionariosNoDia.map(uid => {
