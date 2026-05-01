@@ -70,8 +70,17 @@ export function gerarEscala(
 
     // Como ordemAnterior é o último dia da escala passada,
     // precisamos rotacionar 1 vez para preparar o DIA 1 do novo mês.
-    const tail = currentBaseOrder.pop();
-    if (tail) currentBaseOrder.unshift(tail);
+    if (usersInAnterior.length > 0) {
+      const lastTrabalhou = usersInAnterior[usersInAnterior.length - 1];
+      const idx = currentBaseOrder.findIndex(u => u.id === lastTrabalhou.id);
+      if (idx !== -1) {
+        currentBaseOrder.splice(idx, 1);
+        currentBaseOrder.unshift(lastTrabalhou);
+      }
+    } else {
+      const tail = currentBaseOrder.pop();
+      if (tail) currentBaseOrder.unshift(tail);
+    }
   }
 
   // Gerar escala para cada dia do mês
@@ -129,9 +138,18 @@ export function gerarEscala(
       });
     }
 
-    // Final do dia: rotaciona a lista base para o próximo dia
-    const tailD = currentBaseOrder.pop();
-    if (tailD) currentBaseOrder.unshift(tailD);
+    // Final do dia: rotaciona a lista base garantindo que os ativos andem
+    if (usuariosDisponiveis.length > 0) {
+      const lastVisivel = usuariosDisponiveis[usuariosDisponiveis.length - 1];
+      const idx = currentBaseOrder.findIndex(u => u.id === lastVisivel.id);
+      if (idx !== -1) {
+        currentBaseOrder.splice(idx, 1);
+        currentBaseOrder.unshift(lastVisivel);
+      }
+    } else {
+      const tailD = currentBaseOrder.pop();
+      if (tailD) currentBaseOrder.unshift(tailD);
+    }
   }
 
   return escalas;
@@ -159,8 +177,17 @@ export function recalcularEscalas(
 
   let currentBaseOrder = [...usuariosPresentes, ...usuariosFaltantes];
   
-  const tail = currentBaseOrder.pop();
-  if (tail) currentBaseOrder.unshift(tail);
+  if (usuariosPresentes.length > 0) {
+    const lastTrabalhou = usuariosPresentes[usuariosPresentes.length - 1];
+    const idx = currentBaseOrder.findIndex(u => u.id === lastTrabalhou.id);
+    if (idx !== -1) {
+      currentBaseOrder.splice(idx, 1);
+      currentBaseOrder.unshift(lastTrabalhou);
+    }
+  } else {
+    const tail = currentBaseOrder.pop();
+    if (tail) currentBaseOrder.unshift(tail);
+  }
 
   const parsedFerias = ferias.map(f => ({ ...f, range: parseFeriaDates(f) })).filter(f => f.range) as (Ferias & { range: {start: number, end: number} })[];
 
@@ -205,8 +232,17 @@ export function recalcularEscalas(
       };
     }
     
-    const nextTail = currentBaseOrder.pop();
-    if (nextTail) currentBaseOrder.unshift(nextTail);
+    if (usuariosDisponiveis.length > 0) {
+      const lastVisivel = usuariosDisponiveis[usuariosDisponiveis.length - 1];
+      const idx = currentBaseOrder.findIndex(u => u.id === lastVisivel.id);
+      if (idx !== -1) {
+        currentBaseOrder.splice(idx, 1);
+        currentBaseOrder.unshift(lastVisivel);
+      }
+    } else {
+      const nextTail = currentBaseOrder.pop();
+      if (nextTail) currentBaseOrder.unshift(nextTail);
+    }
   }
 
   return novaEscalas;

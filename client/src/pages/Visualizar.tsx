@@ -244,24 +244,19 @@ export default function Visualizar() {
       if (sourcePosIndex === targetPosIndex) return;
       setIsUpdating(true);
 
-      const novasPosicoes = [...escalas[diaIndex].posicoes];
-      const source = novasPosicoes[sourcePosIndex];
-      const target = novasPosicoes[targetPosIndex];
-
-      // Troca os usuários, mantendo o "posicao" numérico intacto
-      novasPosicoes[sourcePosIndex] = { 
-        ...novasPosicoes[sourcePosIndex], 
-        usuarioId: target.usuarioId, 
-        usuarioNome: target.usuarioNome, 
-        usuarioMatricula: target.usuarioMatricula 
-      };
+      const posicoesAtuais = [...escalas[diaIndex].posicoes];
       
-      novasPosicoes[targetPosIndex] = { 
-        ...novasPosicoes[targetPosIndex], 
-        usuarioId: source.usuarioId, 
-        usuarioNome: source.usuarioNome, 
-        usuarioMatricula: source.usuarioMatricula 
-      };
+      // Remove o elemento arrastado da posição original
+      const [arrastado] = posicoesAtuais.splice(sourcePosIndex, 1);
+      
+      // Insere na nova posição (empurrando os outros)
+      posicoesAtuais.splice(targetPosIndex, 0, arrastado);
+
+      // Re-indexa o campo "posicao"
+      const novasPosicoes = posicoesAtuais.map((item, index) => ({
+        ...item,
+        posicao: index + 1
+      }));
 
       const removerFeriasPref = escalas[diaIndex]?.removerFerias ?? false;
       
