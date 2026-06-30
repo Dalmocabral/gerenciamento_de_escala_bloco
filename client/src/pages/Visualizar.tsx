@@ -291,13 +291,13 @@ export default function Visualizar() {
     }
   };
 
-  const handleSetFolgaFeriado = async (diaIndex: number, posIndex: number, newValue: boolean) => {
+  const handleSetMarcacao = async (diaIndex: number, posIndex: number, campo: 'isFolgaFeriado' | 'isCasadinha', newValue: boolean) => {
     try {
       setIsUpdating(true);
       const novasEscalas = [...escalas];
       const novaEscala = { ...novasEscalas[diaIndex] };
       const novasPosicoes = [...novaEscala.posicoes];
-      novasPosicoes[posIndex] = { ...novasPosicoes[posIndex], isFolgaFeriado: newValue };
+      novasPosicoes[posIndex] = { ...novasPosicoes[posIndex], [campo]: newValue };
       novaEscala.posicoes = novasPosicoes;
       novasEscalas[diaIndex] = novaEscala;
       
@@ -305,10 +305,12 @@ export default function Visualizar() {
       
       const docRef = doc(db, 'escalas', novaEscala.id);
       await updateDoc(docRef, { posicoes: novasPosicoes, updatedAt: new Date() });
-      toast.success(newValue ? 'Folga Feriado aplicada!' : 'Folga Feriado removida!');
+      
+      const nomeCampo = campo === 'isFolgaFeriado' ? 'Folga Feriado' : 'Casadinha';
+      toast.success(newValue ? `${nomeCampo} aplicada!` : `${nomeCampo} removida!`);
     } catch (error) {
-      console.error('Erro ao atualizar folga feriado:', error);
-      toast.error('Erro ao salvar folga feriado');
+      console.error('Erro ao atualizar marcação:', error);
+      toast.error('Erro ao salvar marcação');
       carregarEscalas(); // Reverte p/ db state se falhar
     } finally {
       setIsUpdating(false);
@@ -510,8 +512,10 @@ export default function Visualizar() {
                           const ehFerias = usuarioMaisRecente ? estaEmFerias(usuarioMaisRecente.id, `${diaStr}/${periodo}`, ferias, ano) : false;
 
                           const isFolgaFeriado = posicao?.isFolgaFeriado;
+                          const isCasadinha = posicao?.isCasadinha;
 
                           const bgColor = ehFerias ? 'bg-red-100 shadow-inner ring-1 ring-red-300' 
+                                        : isCasadinha ? 'bg-red-200 shadow-inner ring-1 ring-red-400'
                                         : isFolgaFeriado ? 'bg-[#f4cdab] shadow-inner ring-1 ring-[#e2a87a]'
                                         : ehFolga ? 'bg-yellow-300 shadow-inner ring-1 ring-yellow-400' 
                                         : '';
@@ -546,14 +550,15 @@ export default function Visualizar() {
                               {posicao ? (
                                 <div className={`flex flex-col p-1 -m-1 rounded ${dragEnabled ? 'cursor-grab active:cursor-grabbing hover:bg-muted/50' : 'cursor-default'} ${dragInfo?.diaIndex === escalaIndex && dragInfo?.posIndex === i ? 'opacity-50' : ''}`}>
                                   <div className="flex gap-1 items-center justify-between">
-                                    <span className={`font-medium pointer-events-none truncate ${ehFolga || ehFerias || isFolgaFeriado ? 'text-foreground/90 drop-shadow-sm' : 'text-foreground'}`}>
+                                    <span className={`font-medium pointer-events-none truncate ${ehFolga || ehFerias || isFolgaFeriado || isCasadinha ? 'text-foreground/90 drop-shadow-sm' : 'text-foreground'}`}>
                                       {nomeApresentar}
                                     </span>
-                                    {isFolgaFeriado && !ehFerias && <span className="text-[9px] font-bold text-[#b45a1c] whitespace-nowrap italic drop-shadow-sm z-10">Folga Feriado</span>}
-                                    {ehFolga && !ehFerias && !isFolgaFeriado && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap z-10">FOLGA</span>}
+                                    {isFolgaFeriado && !ehFerias && !isCasadinha && <span className="text-[9px] font-bold text-[#b45a1c] whitespace-nowrap italic drop-shadow-sm z-10">Folga Feriado</span>}
+                                    {isCasadinha && !ehFerias && <span className="text-[9px] font-bold text-red-800 whitespace-nowrap italic drop-shadow-sm z-10">Casadinha</span>}
+                                    {ehFolga && !ehFerias && !isFolgaFeriado && !isCasadinha && <span className="text-[9px] font-bold bg-yellow-400 text-yellow-950 px-1 py-0.5 rounded shadow-sm border border-yellow-500 whitespace-nowrap z-10">FOLGA</span>}
                                     {ehFerias && <span className="text-[9px] font-bold bg-red-300 text-red-950 px-1 py-0.5 rounded shadow-sm border border-red-400 whitespace-nowrap z-10">FÉRIAS</span>}
                                   </div>
-                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga || ehFerias || isFolgaFeriado ? 'text-foreground/70 font-medium' : 'text-muted-foreground'}`}>
+                                  <span className={`text-xs mt-1 pointer-events-none ${ehFolga || ehFerias || isFolgaFeriado || isCasadinha ? 'text-foreground/70 font-medium' : 'text-muted-foreground'}`}>
                                     {matriculaApresentar}
                                   </span>
 
@@ -561,13 +566,16 @@ export default function Visualizar() {
                                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className={`h-5 w-5 rounded shadow-sm border border-border/50 ${isFolgaFeriado ? 'bg-[#e2a87a]/40 hover:bg-[#e2a87a]/60 text-[#b45a1c]' : 'bg-background/80 hover:bg-background text-foreground'}`}>
+                                        <Button variant="ghost" size="icon" className={`h-5 w-5 rounded shadow-sm border border-border/50 ${isCasadinha ? 'bg-red-200 hover:bg-red-300 text-red-800' : isFolgaFeriado ? 'bg-[#e2a87a]/40 hover:bg-[#e2a87a]/60 text-[#b45a1c]' : 'bg-background/80 hover:bg-background text-foreground'}`}>
                                           <ChevronDown className="h-3 w-3" />
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleSetFolgaFeriado(escalaIndex, i, !isFolgaFeriado)} className="cursor-pointer text-xs">
+                                        <DropdownMenuItem onClick={() => handleSetMarcacao(escalaIndex, i, 'isFolgaFeriado', !isFolgaFeriado)} className="cursor-pointer text-xs">
                                           {isFolgaFeriado ? 'Remover Folga Feriado' : 'Marcar Folga Feriado'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleSetMarcacao(escalaIndex, i, 'isCasadinha', !isCasadinha)} className="cursor-pointer text-xs text-red-600">
+                                          {isCasadinha ? 'Remover Casadinha' : 'Marcar Casadinha'}
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>

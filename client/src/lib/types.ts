@@ -24,6 +24,7 @@ export interface PosicaoEscala {
   usuarioNome: string;
   usuarioMatricula: string;
   isFolgaFeriado?: boolean;
+  isCasadinha?: boolean;
 }
 
 export interface Ferias {
